@@ -17,7 +17,8 @@ SAVE_EVERY='1000'
 EMA_START='20000'
 G_LR='1e-4'
 D_LR='4e-4'
-LOSS="dcgan"
+LOSS="hinge"
+D_STEPS="1"
 
 # OTHER VARS
 ENV_VARS=''
@@ -29,7 +30,7 @@ N_NODES='1'
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 DATA_ROOT="/ptmp/pierocor/datasets"
-OUT_ROOT="${PROJ_ROOT}/tmp"
+OUT_ROOT="/ptmp/pierocor/BigGan_out"
 WEIGHTS_ROOT="${OUT_ROOT}/weights"
 LOGS_ROOT="${OUT_ROOT}/logs"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
@@ -74,7 +75,7 @@ while getopts ':m:d:b:w:s:t:pr' flag; do
   esac
 done
 
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}_${LOSS}"
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}_${LOSS}_D${D_STEPS}"
 
 case ${DATASET} in
   E256)
@@ -230,7 +231,7 @@ ${RUN} train.py \\
   ${DATA_ARG}
   --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
   --num_G_accumulations 1 --num_D_accumulations 1 \\
-  --num_D_steps 1 --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
+  --num_D_steps ${D_STEPS} --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
   --G_attn 64 --D_attn 64 \\
   --G_nl inplace_relu --D_nl inplace_relu \\
   --SN_eps 1e-6 --BN_eps 1e-5 --adam_eps 1e-6 \\
@@ -243,7 +244,7 @@ ${RUN} train.py \\
   --ema --use_ema --ema_start ${EMA_START} \\
   --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} \\
   --num_best_copies 5 --num_save_copies 2 \\
-  --seed ${SEED} ${ADD_ARGS}
+  --seed ${SEED} ${ADD_ARGS} --loss ${LOSS}
 
 EOF
 
