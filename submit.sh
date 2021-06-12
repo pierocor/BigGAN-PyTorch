@@ -1,7 +1,6 @@
 #!/bin/bash -l
 
 # Default values
-
 DATASET='small_E256'
 BS='34'
 MODE='long'
@@ -9,33 +8,73 @@ NUM_WORKERS='8'
 MONITORING="sys"
 PARALLEL="false"
 SEED='0'
-
+G_LR='1e-4'
+D_LR='4e-4'
+LOSS="dcgan"
+D_STEPS="1"
+ACCUM="1"
+DATA_ROOT="/ptmp/pierocor/datasets"
+OUT_ROOT="/ptmp/pierocor/BigGan_out"
 
 # DEFAULT TRAINING VALUES
 TEST_EVERY='1000'
 SAVE_EVERY='1000'
 EMA_START='20000'
-G_LR='1e-4'
-D_LR='4e-4'
-LOSS="hinge"
-D_STEPS="1"
+
 
 # OTHER VARS
 ENV_VARS=''
 ADD_ARGS=''
-JOB_ARR_LENGTH='0'
+JOB_ARR_LENGTH='1'
 N_NODES='1'
+
+
+print_usage() {
+  printf "Usage: ./submit.sh
+ -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
+ -d <string> dataset (E256 | small_E256);
+ -b <int> batch size (default 34);
+ -a <int> accumulation (both G and D, default 1);
+ -l <int> loss (hinge | dcgan);
+ -G <float> G learning rate (default 1e-4);
+ -D <float> D learning rate (default 4e-4);
+ -x <int> D training steps (default 1);
+ -w <int> number of workers for DataLoader;
+ -s <int> seed;
+ -o <string> Output root directory;
+ -t <string> Monitoring tool (sys | usr | pt);
+ -p Use all GPUs with DataParallel;
+ -r resume from previous checkpoint.
+ "
+}
+
+while getopts ':m:d:b:a:l:G:D:x:w:s:o:t:pr' flag; do
+  case "${flag}" in
+    m) MODE="${OPTARG}" ;;
+    d) DATASET="${OPTARG}" ;;
+    b) BS="${OPTARG}" ;;
+    a) ACCUM="${OPTARG}" ;;
+    l) LOSS="${OPTARG}" ;;
+    G) G_LR="${OPTARG}" ;;
+    D) D_LR="${OPTARG}" ;;
+    x) D_STEPS="${OPTARG}" ;;
+    w) NUM_WORKERS="${OPTARG}" ;;
+    s) SEED="${OPTARG}" ;;
+    t) MONITORING="${OPTARG}" ;;
+    o) OUT_ROOT="${OPTARG}" ;;
+    p) PARALLEL="true" ;;
+    r) ADD_ARGS="${ADD_ARGS} --resume" ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
 
 # PATHS
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-DATA_ROOT="/ptmp/pierocor/datasets"
-OUT_ROOT="/ptmp/pierocor/BigGan_out"
 WEIGHTS_ROOT="${OUT_ROOT}/weights"
 LOGS_ROOT="${OUT_ROOT}/logs"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
-
-
 SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts" 
 OUTPUT_DIR="${OUT_ROOT}/output"
 
@@ -46,36 +85,7 @@ mkdir -p ${WEIGHTS_ROOT}
 mkdir -p ${LOGS_ROOT}
 mkdir -p ${SAMPLES_ROOT}
 
-
-print_usage() {
-  printf "Usage: ./submit.sh
- -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
- -d <string> dataset (E256 | small_E256);
- -b <int> batch size;
- -w <int> number of workers for DataLoader;
- -s <int> seed;
- -t <string> Monitoring tool (sys | usr | pt);
- -p Use all GPUs with DataParallel;
- -r resume from previous checkpoint.
- "
-}
-
-while getopts ':m:d:b:w:s:t:pr' flag; do
-  case "${flag}" in
-    m) MODE="${OPTARG}" ;;
-    d) DATASET="${OPTARG}" ;;
-    b) BS="${OPTARG}" ;;
-    w) NUM_WORKERS="${OPTARG}" ;;
-    s) SEED="${OPTARG}" ;;
-    t) MONITORING="${OPTARG}" ;;
-    p) PARALLEL="true" ;;
-    r) ADD_ARGS="${ADD_ARGS} --resume" ;;
-    *) print_usage
-       exit 1 ;;
-  esac
-done
-
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}_${LOSS}_D${D_STEPS}"
+JOB_NAME="${DATASET}_${BS}x${ACCUM}_${G_LR}_${D_LR}_D${D_STEPS}_${LOSS}_${MODE}_w${NUM_WORKERS}_s${SEED}"
 
 case ${DATASET} in
   E256)
@@ -230,7 +240,7 @@ ${RUN} train.py \\
   --num_epochs ${N_EPOCHS} \\
   ${DATA_ARG}
   --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
-  --num_G_accumulations 1 --num_D_accumulations 1 \\
+  --num_G_accumulations ${ACCUM} --num_D_accumulations ${ACCUM} \\
   --num_D_steps ${D_STEPS} --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
   --G_attn 64 --D_attn 64 \\
   --G_nl inplace_relu --D_nl inplace_relu \\
