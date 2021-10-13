@@ -66,8 +66,9 @@ def run(config):
   # Load weights
   print('Loading weights...')
   # Here is where we deal with the ema--load ema weights or load normal weights
+  root = config['load_from'] if (config['load_from']) else config['weights_root'] 
   utils.load_weights(G if not (config['use_ema']) else None, None, state_dict, 
-                     config['weights_root'], experiment_name, config['load_weights'],
+                     root, experiment_name, config['load_weights'],
                      G if config['ema'] and config['use_ema'] else None,
                      strict=False, load_optim=False)
   # Update batch size setting used for G
