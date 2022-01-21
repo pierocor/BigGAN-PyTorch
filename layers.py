@@ -2,6 +2,7 @@
     This file contains various layers for the BigGAN models.
 '''
 import numpy as np
+import functools
 import torch
 import torch.nn as nn
 from torch.nn import init
@@ -365,7 +366,86 @@ class bn(nn.Module):
       return F.batch_norm(x, self.stored_mean, self.stored_var, self.gain,
                           self.bias, self.training, self.momentum, self.eps)
 
-                          
+# MINICONV: define the LBlock: The L Block is a modified residual block designed
+# specifically for increasing the number of channels of its respective input.
+# As in paper: https://arxiv.org/abs/2104.00954 pg 12 and pg 18 fig 1 b
+class LBlock(nn.Module):
+  def __init__(self, in_channels, out_channels, preactivation=False):
+    super(LBlock, self).__init__()
+    
+    self.in_channels, self.out_channels = in_channels, out_channels
+    # L block increases the channels!
+    assert self.in_channels < self.out_channels
+    # This is not clear in the paper. Copying from GBlock.
+    self.mid_channels = self.out_channels
+    # First Relu might be applied..  [relu]-conv-relu-conv
+    self.preactivation = preactivation
+    # All conv layers with Spectral normalisation!
+    # TODO: num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps not defined!
+    # FIX: as for the Miniconv class
+    self.conv = functools.partial(SNConv2d, padding=1, num_svs=num_G_SVs,
+                                  num_itrs=num_G_SV_itrs, eps=self.SN_eps)
+    self.conv_1 = self.conv(self.in_channels,
+                            self.out_channels - self.in_channels, kernel_size=1)
+    self.conv_3_0 = self.conv(self.in_channels, self.mid_channels, kernel_size=3)
+    self.conv_3_1 = self.conv(self.mid_channels, self.out_channels, kernel_size=3)
+
+  def forward(self, x):
+    # 8 X 8 x c_i -> 8 X 8 x c_o (c_i, c_o in 8, 24, 48, 192, 768)
+
+    # Lower path
+    h = x
+    if self.preactivation:
+      h = F.relu(x)
+    h = self.conv_3_0(h) # 8 X 8 x c_i -> 8 X 8 x c_m
+    h = F.relu(h)
+    h = self.conv_3_1(h) # 8 X 8 x c_m -> 8 X 8 x c_o
+
+    # Mid path
+    j = self.conv_1(x) # 8 X 8 x c_i -> 8 X 8 x (c_o - c_i) 
+    j = torch.cat([j, x], dim=2) # -> 8 X 8 x c_o
+
+    return h + j
+
+# MINICONV: Miniconv - aka Latent Conditioning Stack
+# As in the paper (https://arxiv.org/abs/2104.00954 pg 12 ):
+# For the latent conditioning stack, entries in the 8x8x8 input are independent
+# draws from a normal distribution. The latent conditioning stack comprises one
+# 3x3 convolution, three L Blocks, a spatial attention module, and one L Block.
+class Miniconv(nn.Module):
+  def __init__(self, preactivation=False):
+    super(Miniconv, self).__init__()
+
+    # First Relu might be applied in the L block.
+    self.preactivation = preactivation
+    self.channels = [8, 24, 48, 192, 768]
+
+    # TODO: num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps not defined!
+    # FIX: following GBlock add a parameter which_conv=SNConv2d to __init__
+    # The parameters of SNConv2d should be defined via functools.partial somewhere
+    # else (in BigGANminiconv.py for example)
+    self.conv_0 = SNConv2d(in_channels=self.channels[0],
+                           out_channels=self.channels[0],  kernel_size=3,
+                           padding=1, num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
+                           eps=self.SN_eps)
+    self.blocks = []
+    for index, c_i in enumerate(self.channels[:-1]):
+      c_o = self.channels[index+1]
+      self.blocks += [LBlock(c_i, c_o, self.preactivation)]
+      if index == 2:
+        self.blocks += [Attention(ch=c_o, which_conv=SNConv2d)]
+
+  def forward(self, z):
+    # 8 X 8 x 8 -> 8 X 8 x 768
+
+    # First conv
+    x = self.conv_0(z)
+
+    # 3 L blocks, Attentio layer, final L block
+    for block in self.blocks:
+      x = block(x)
+    return x
+
 # Generator blocks
 # Note that this class assumes the kernel size and padding (and any other
 # settings) have been selected in the main generator module and passed in
