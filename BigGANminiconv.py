@@ -16,6 +16,9 @@ from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 # Architectures for G
 # Attention is passed in in the format '32_64' to mean applying an attention
 # block at both resolution 32x32 and 64x64. Just '64' will apply at 64x64.
+
+# TODO: The first element of 'in_channels' might be doubled (check comment on Generator.forward())
+# E.g.: arch[256] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2]], ... first 16 -> 32
 def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
   arch = {}
   arch[512] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2, 1]],
@@ -254,15 +257,21 @@ class Generator(nn.Module):
     # MINICONV: self.miniconv(z) replace self.linear(z)
     h = self.miniconv(z)
 
-    # TODO: Check the shapes!!! 
+    # TODO: Check the shapes!!!
+    # Previous linear layer -> 24576 (in "std" setting but could vary)
+    # Miniconv -> 8*8*768 (Fixed!)
     # Reshape
     h = h.view(h.size(0), -1, self.bottom_width, self.bottom_width)
+    # RESHAPE OUTPUT:
+    # BigGAN "std" -> (bs, 1536, 4, 4) 
+    # Miniconv -> (bs, 3072, 4, 4)
+    # Double number of channels!!
     
     # Loop over blocks
     for index, blocklist in enumerate(self.blocks):
       # Second inner loop in case block has multiple layers
       for block in blocklist:
-        # PBM: ys is used just in the bn layer. Thus in "std" setting is not used at all!
+        # PBM: ys is used just in the bn layer.
         h = block(h, ys[index])
         
     # Apply batchnorm-relu-conv-tanh at output
