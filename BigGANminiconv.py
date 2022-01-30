@@ -71,8 +71,8 @@ class Generator(nn.Module):
     self.ch = G_ch
     # Dimensionality of the latent space
     # TODO: Somewhere impose dim_z = 8**3
-    assert dim_z == 8**3
-    self.dim_z = dim_z
+    # assert dim_z == 8**3
+    self.dim_z = 8**3
     # The initial spatial dimensions
     self.bottom_width = bottom_width
     # Resolution of the output
@@ -134,8 +134,12 @@ class Generator(nn.Module):
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
-    # TODO: Do something similar to self.which_conv for the Miniconv SNconv2d Layers
+    # Do something similar to self.which_conv for the Miniconv SNconv2d Layers
     # kernel_size should not be fixed to 3
+    self.which_SNconv = functools.partial(layers.SNConv2d,
+                        padding=1,
+                        num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
+                        eps=self.SN_eps)
       
     # We use a non-spectral-normed embedding here regardless;
     # For some reason applying SN to G's embedding seems to randomly cripple G
@@ -162,7 +166,8 @@ class Generator(nn.Module):
     # self.linear = self.which_linear(self.dim_z // self.num_slots,
     #                                 self.arch['in_channels'][0] * (self.bottom_width **2))
     # TODO: preactivation might be set to True
-    self.miniconv = layers.Miniconv(preactivation=False)
+    self.miniconv = layers.Miniconv(preactivation=False,
+                                    which_SNconv=self.which_SNconv)
 
     # self.blocks is a doubly-nested list of modules, the outer loop intended
     # to be over blocks at a given resolution (resblocks and/or self-attention)
@@ -246,6 +251,8 @@ class Generator(nn.Module):
   # interpolation later. If we passed in the one-hot and then ran it through
   # G.shared in this forward function, it would be harder to handle.
   def forward(self, z, y):
+    # Reshape latent vector to cubic tensor.
+    z = torch.reshape(z, (-1,8,8,8))
     # If hierarchical, concatenate zs and ys
     if self.hier:
       zs = torch.split(z, self.z_chunk_size, 1)

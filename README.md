@@ -8,8 +8,7 @@ Currently this involves 2 modules:
 ## TODOs:
 
 Check (and use) the TODO label in the code! Currently 3 major points to work on
-* Input shape of z: from linear to 8x8x8. - Where to impose the dimensionality? probably `utils.py` - Where to shape the cubic tensor? Maybe in the forward method of the Generator in `BigGANminiconv.py`
-* Nice implementation of SNConv2d using partial in `BigGANminiconv.py` to be used in the `Miniconv` and `LBlock` classes.
+* Where to impose the dimensionality? probably `utils.py`
 * After Miniconv: The output shape of Miniconv is (bs, 768, 8, 8) while the linear layer had output (bs, 24576). After the reshape we get a cubic tensor that has double channels than the previous one: BigGAN "std" -> (bs, 1536, 4, 4) Miniconv -> (bs, 3072, 4, 4).
 
 

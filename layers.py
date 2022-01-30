@@ -370,7 +370,8 @@ class bn(nn.Module):
 # specifically for increasing the number of channels of its respective input.
 # As in paper: https://arxiv.org/abs/2104.00954 pg 12 and pg 18 fig 1 b
 class LBlock(nn.Module):
-  def __init__(self, in_channels, out_channels, preactivation=False):
+  def __init__(self, in_channels, out_channels, preactivation=False,
+                which_SNconv=SNConv2d):
     super(LBlock, self).__init__()
     
     self.in_channels, self.out_channels = in_channels, out_channels
@@ -381,10 +382,8 @@ class LBlock(nn.Module):
     # First Relu might be applied..  [relu]-conv-relu-conv
     self.preactivation = preactivation
     # All conv layers with Spectral normalisation!
-    # TODO: num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps not defined!
-    # FIX: as for the Miniconv class
-    self.conv = functools.partial(SNConv2d, padding=1, num_svs=num_G_SVs,
-                                  num_itrs=num_G_SV_itrs, eps=self.SN_eps)
+    self.conv = which_SNconv
+
     self.conv_1 = self.conv(self.in_channels,
                             self.out_channels - self.in_channels, kernel_size=1)
     self.conv_3_0 = self.conv(self.in_channels, self.mid_channels, kernel_size=3)
@@ -413,25 +412,23 @@ class LBlock(nn.Module):
 # draws from a normal distribution. The latent conditioning stack comprises one
 # 3x3 convolution, three L Blocks, a spatial attention module, and one L Block.
 class Miniconv(nn.Module):
-  def __init__(self, preactivation=False):
+  def __init__(self, preactivation=False, which_SNconv=SNConv2d):
     super(Miniconv, self).__init__()
 
     # First Relu might be applied in the L block.
     self.preactivation = preactivation
     self.channels = [8, 24, 48, 192, 768]
+    self.conv = which_SNconv
 
-    # TODO: num_G_SVs, num_itrs=num_G_SV_itrs, eps=self.SN_eps not defined!
     # FIX: following GBlock add a parameter which_conv=SNConv2d to __init__
     # The parameters of SNConv2d should be defined via functools.partial somewhere
     # else (in BigGANminiconv.py for example)
-    self.conv_0 = SNConv2d(in_channels=self.channels[0],
-                           out_channels=self.channels[0],  kernel_size=3,
-                           padding=1, num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
-                           eps=self.SN_eps)
+    self.conv_0 = self.conv(in_channels=self.channels[0],
+                           out_channels=self.channels[0],  kernel_size=3)
     self.blocks = []
     for index, c_i in enumerate(self.channels[:-1]):
       c_o = self.channels[index+1]
-      self.blocks += [LBlock(c_i, c_o, self.preactivation)]
+      self.blocks += [LBlock(c_i, c_o, self.preactivation, self.conv)]
       if index == 2:
         self.blocks += [Attention(ch=c_o, which_conv=SNConv2d)]
 
