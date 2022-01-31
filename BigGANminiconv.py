@@ -17,7 +17,8 @@ from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 # Attention is passed in in the format '32_64' to mean applying an attention
 # block at both resolution 32x32 and 64x64. Just '64' will apply at 64x64.
 
-# TODO: The first element of 'in_channels' might be doubled (check comment on Generator.forward())
+# TODO: The first element of 'in_channels' has been fixed to 3072 (check comment on Generator.forward())
+# TODO: for resolution 256 and 128. It was ch * 16 (where ch = 96 in "std" setting)
 # E.g.: arch[256] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2]], ... first 16 -> 32
 def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
   arch = {}
@@ -27,13 +28,13 @@ def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
                'resolution' : [8, 16, 32, 64, 128, 256, 512],
                'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
                               for i in range(3,10)}}
-  arch[256] = {'in_channels' :  [ch * item for item in [16, 16, 8, 8, 4, 2]],
+  arch[256] = {'in_channels' :  [3072] + [ch * item for item in [16, 8, 8, 4, 2]],
                'out_channels' : [ch * item for item in [16,  8, 8, 4, 2, 1]],
                'upsample' : [True] * 6,
                'resolution' : [8, 16, 32, 64, 128, 256],
                'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
                               for i in range(3,9)}}
-  arch[128] = {'in_channels' :  [ch * item for item in [16, 16, 8, 4, 2]],
+  arch[128] = {'in_channels' :  [3072] + [ch * item for item in [16, 8, 4, 2]],
                'out_channels' : [ch * item for item in [16, 8, 4, 2, 1]],
                'upsample' : [True] * 5,
                'resolution' : [8, 16, 32, 64, 128],
@@ -71,8 +72,8 @@ class Generator(nn.Module):
     self.ch = G_ch
     # Dimensionality of the latent space
     # TODO: Somewhere impose dim_z = 8**3
-    # assert dim_z == 8**3
-    self.dim_z = 8**3
+    assert dim_z == 8**3
+    self.dim_z = dim_z
     # The initial spatial dimensions
     self.bottom_width = bottom_width
     # Resolution of the output
@@ -88,7 +89,7 @@ class Generator(nn.Module):
     # Dimensionality of the shared embedding? Unused if not using G_shared
     self.shared_dim = shared_dim if shared_dim > 0 else dim_z
     # Hierarchical latent space?
-    # TODO: this as important conseguences if set to True. Understand them and allow hier = True
+    # TODO: this has important consequences if set to True. Understand them and allow hier = True
     self.hier = False
     # Cross replica batchnorm?
     self.cross_replica = cross_replica
@@ -134,10 +135,9 @@ class Generator(nn.Module):
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
-    # Do something similar to self.which_conv for the Miniconv SNconv2d Layers
-    # kernel_size should not be fixed to 3
+    # Similar to self.which_conv for the Miniconv SNconv2d Layers
+    # kernel_size is not fixed to 3 and padding varies consequently
     self.which_SNconv = functools.partial(layers.SNConv2d,
-                        padding=1,
                         num_svs=num_G_SVs, num_itrs=num_G_SV_itrs,
                         eps=self.SN_eps)
       
@@ -270,7 +270,7 @@ class Generator(nn.Module):
     # Reshape
     h = h.view(h.size(0), -1, self.bottom_width, self.bottom_width)
     # RESHAPE OUTPUT:
-    # BigGAN "std" -> (bs, 1536, 4, 4) 
+    # BigGAN "std" -> (bs, 1536, 4, 4)
     # Miniconv -> (bs, 3072, 4, 4)
     # Double number of channels!!
     

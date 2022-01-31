@@ -7,10 +7,13 @@ Currently this involves 2 modules:
 
 ## TODOs:
 
-Check (and use) the TODO label in the code! Currently 3 major points to work on
-* Where to impose the dimensionality? probably `utils.py`
-* After Miniconv: The output shape of Miniconv is (bs, 768, 8, 8) while the linear layer had output (bs, 24576). After the reshape we get a cubic tensor that has double channels than the previous one: BigGAN "std" -> (bs, 1536, 4, 4) Miniconv -> (bs, 3072, 4, 4).
-
+Check (and use) the TODO label in the code!
+Major points to work on:
+1) Impose a dimensionality check for BigGANminiconv. Probably `utils.py` is a good place.
+2) The Gblock has been modified and the number of input channels has been doubled.
+  - What consequences to this have?
+  - This currently works only for resolution 128 and 256
+3) What about `hier` mode?
 
 # BigGAN-PyTorch
 The author's officially unofficial PyTorch BigGAN implementation.

@@ -384,10 +384,12 @@ class LBlock(nn.Module):
     # All conv layers with Spectral normalisation!
     self.conv = which_SNconv
 
+    # To keep the same dimensions: Kernel size 1 -> padding 0
     self.conv_1 = self.conv(self.in_channels,
-                            self.out_channels - self.in_channels, kernel_size=1)
-    self.conv_3_0 = self.conv(self.in_channels, self.mid_channels, kernel_size=3)
-    self.conv_3_1 = self.conv(self.mid_channels, self.out_channels, kernel_size=3)
+                            self.out_channels - self.in_channels,
+                            kernel_size=1, padding=0)
+    self.conv_3_0 = self.conv(self.in_channels, self.mid_channels, kernel_size=3, padding=1)
+    self.conv_3_1 = self.conv(self.mid_channels, self.out_channels, kernel_size=3, padding=1)
 
   def forward(self, x):
     # 8 X 8 x c_i -> 8 X 8 x c_o (c_i, c_o in 8, 24, 48, 192, 768)
@@ -401,8 +403,8 @@ class LBlock(nn.Module):
     h = self.conv_3_1(h) # 8 X 8 x c_m -> 8 X 8 x c_o
 
     # Mid path
-    j = self.conv_1(x) # 8 X 8 x c_i -> 8 X 8 x (c_o - c_i) 
-    j = torch.cat([j, x], dim=2) # -> 8 X 8 x c_o
+    j = self.conv_1(x) # 8 X 8 x c_i -> 8 X 8 x (c_o - c_i)
+    j = torch.cat([j, x], dim=1) # -> 8 X 8 x c_o
 
     return h + j
 
@@ -424,13 +426,16 @@ class Miniconv(nn.Module):
     # The parameters of SNConv2d should be defined via functools.partial somewhere
     # else (in BigGANminiconv.py for example)
     self.conv_0 = self.conv(in_channels=self.channels[0],
-                           out_channels=self.channels[0],  kernel_size=3)
+                           out_channels=self.channels[0],  kernel_size=3, padding=1)
     self.blocks = []
     for index, c_i in enumerate(self.channels[:-1]):
       c_o = self.channels[index+1]
       self.blocks += [LBlock(c_i, c_o, self.preactivation, self.conv)]
       if index == 2:
         self.blocks += [Attention(ch=c_o, which_conv=SNConv2d)]
+
+    self.blocks = nn.ModuleList(self.blocks)
+
 
   def forward(self, z):
     # 8 X 8 x 8 -> 8 X 8 x 768

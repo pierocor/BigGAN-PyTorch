@@ -6,17 +6,17 @@
 #SBATCH -J hvd_BigGan
 
 ### TIME LIMIT: e.g.
-#SBATCH --time=0-02:00:00
+#SBATCH --time=0-00:30:00
 #SBATCH --signal=USR1@300
 
 ### NODE features:
 ### Num nodes, num tasks per node
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=1
 
 ### No need to modify below on raven!
 #SBATCH --constraint="gpu"
-#SBATCH --gres=gpu:a100:4
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=0
 #SBATCH --ntasks-per-socket=2
 #SBATCH --cpus-per-task=18
@@ -47,9 +47,10 @@ srun python train.py \
   --weights_root $WEIGHTS_ROOT \
   --logs_root $LOGS_ROOT \
   --samples_root $SAMPLE_ROOT \
-  --num_epochs 1000 \
+  --model BigGANminiconv \
+  --num_epochs 1 \
   --dataset ecoset_cs500 \
-  --shuffle  --num_workers 0 --batch_size 176 \
+  --shuffle  --num_workers 0 --batch_size 40 \
   --num_G_accumulations 1 --num_D_accumulations 1 \
   --num_D_steps 2 --G_lr 5.0e-05 --D_lr 3.0e-04 --D_B2 0.999 --G_B2 0.999 \
   --G_attn 64 --D_attn 64 \
@@ -58,15 +59,16 @@ srun python train.py \
   --G_ortho 0.0 \
   --G_shared \
   --G_init ortho --D_init ortho \
-  --hier --dim_z 120 --shared_dim 128 \
+  --dim_z 512 --shared_dim 128 \
   --G_eval_mode \
   --G_ch 96 --D_ch 96 \
   --ema --use_ema --ema_start 20000 \
   --test_every 100 --save_every 1000 \
   --num_best_copies 5 --num_save_copies 2 \
   --copy_in_mem \
-  --seed 42 --resume \
-  --load_from ${LOAD_FROM} --load_weights best4
+  --experiment_name miniconv_test_${SLURM_JOB_ID}
+  # --hier --seed 42 --resume \
+  # --load_from ${LOAD_FROM} --load_weights best4
 
 ### WARNING! Run the script as it is just once. After that, to resume training remove the --load_from flag
 
