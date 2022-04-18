@@ -25,7 +25,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torch.utils.data.distributed import DistributedSampler
 import horovod.torch as hvd
 
@@ -1202,18 +1202,21 @@ def sample_1hot(batch_size, num_classes, device='cuda'):
 class Distribution(torch.Tensor):
   # Init the params of the distribution
   def init_distribution(self, dist_type, **kwargs):    
+    class_weights = torch.load('/ptmp/wero/class_weights.pt').tolist()
     self.dist_type = dist_type
     self.dist_kwargs = kwargs
     if self.dist_type == 'normal':
       self.mean, self.var = kwargs['mean'], kwargs['var']
     elif self.dist_type == 'categorical':
       self.num_categories = kwargs['num_categories']
+      self.sampler = WeightedRandomSampler(class_weights, len(self), replacement=True)
 
   def sample_(self):
     if self.dist_type == 'normal':
       self.normal_(self.mean, self.var)
     elif self.dist_type == 'categorical':
-      self.random_(0, self.num_categories)    
+      #self.random_(0, self.num_categories)
+      self[:] = torch.tensor(list(self.sampler), dtype=torch.int)
     # return self.variable
     
   # Silly hack: overwrite the to() method to wrap the new object

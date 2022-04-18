@@ -20,7 +20,7 @@ def dummy_training_function():
   return train
 
 
-def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config, class_weights):
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
@@ -46,9 +46,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
                             x[counter], y[counter], train_G=False, 
                             split_D=config['split_D'])
          
+        # Also pass labels of discriminator input to loss function for weighting
+        gy = y_[:single_process_batch_size]
+        dy = y[counter]
+
         # Compute components of D's loss, average them, and divide by 
         # the number of gradient accumulations
-        D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
+        D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real, gy, dy, class_weights)
         D_loss = (D_loss_real + D_loss_fake) / float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
@@ -75,7 +79,8 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       z_.sample_()
       y_.sample_()
       D_fake = GD(z_, y_, train_G=True, split_D=config['split_D'])
-      G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
+      # Again pass label for weighting
+      G_loss = losses.generator_loss(D_fake, y_, class_weights) / float(config['num_G_accumulations'])
       G_loss.backward()
     
     # Optionally apply modified ortho reg in G

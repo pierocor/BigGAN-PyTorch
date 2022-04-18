@@ -105,8 +105,8 @@ def run(config):
     # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
   if hvd.rank() == 0:
-    print(G)
-    print(D)
+    #print(G)
+    #print(D)
     print('Number of params in G: {} D: {}'.format(
       *[sum([p.data.nelement() for p in net.parameters()]) for net in [G,D]]))
   # Prepare state dict, which holds things like epoch # and itr #
@@ -187,8 +187,10 @@ def run(config):
   fixed_y.sample_()
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
+    class_weights = torch.load('/ptmp/wero/class_weights.pt')
+    class_weights = class_weights.to(device)
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
-                                            ema, state_dict, config)
+                                            ema, state_dict, config, class_weights)
   # Else, assume debugging and use the dummy train fn
   else:
     train = train_fns.dummy_training_function()
