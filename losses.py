@@ -14,11 +14,11 @@ def loss_dcgan_gen(dis_fake):
 
 
 # Hinge Loss
-def loss_hinge_dis(dis_fake, dis_real, gy, dy, class_weights):
-  gy_weighting = torch.index_select(class_weights, 0, gy)
-  dy_weighting = torch.index_select(class_weights, 0, dy)
-  loss_real = torch.mean(dy_weighting * F.relu(1. - dis_real))
-  loss_fake = torch.mean(gy_weighting * F.relu(1. + dis_fake))
+def loss_hinge_dis(dis_fake, dis_real, y_fake, y_real, class_weights):
+  y_fake_weighting = torch.index_select(class_weights, 0, y_fake)
+  y_real_weighting = torch.index_select(class_weights, 0, y_real)
+  loss_real = torch.mean(y_real_weighting * F.relu(1. - dis_real))
+  loss_fake = torch.mean(y_fake_weighting * F.relu(1. + dis_fake))
   return loss_real, loss_fake
 # def loss_hinge_dis(dis_fake, dis_real): # This version returns a single loss
   # loss = torch.mean(F.relu(1. - dis_real))
@@ -26,9 +26,9 @@ def loss_hinge_dis(dis_fake, dis_real, gy, dy, class_weights):
   # return loss
 
 
-def loss_hinge_gen(dis_fake, y, class_weights):
-  y_weighting = torch.index_select(class_weights, 0, y)
-  loss = -torch.mean(y_weighting * dis_fake)
+def loss_hinge_gen(dis_fake, y_fake, class_weights):
+  y_fake_weighting = torch.index_select(class_weights, 0, y_fake)
+  loss = -torch.mean(y_fake_weighting * dis_fake)
   return loss
 
 # Default to hinge loss

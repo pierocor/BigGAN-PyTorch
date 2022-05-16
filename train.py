@@ -187,7 +187,12 @@ def run(config):
   fixed_y.sample_()
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
-    class_weights = torch.load('/ptmp/wero/class_weights.pt')
+    cwd = os.getcwd()
+    filename = config['class_weights_file']
+    path = os.path.join(cwd, filename)
+    if hvd.rank() == 0:
+      print('Using %s as weights.' % filename)
+    class_weights = torch.load(filename)
     class_weights = class_weights.to(device)
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config, class_weights)

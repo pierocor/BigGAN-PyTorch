@@ -11,7 +11,7 @@
 
 ### NODE features:
 ### Num nodes, num tasks per node
-#SBATCH --nodes=1
+#SBATCH --nodes=10
 #SBATCH --ntasks-per-node=4
 
 ### No need to modify below on raven!
@@ -51,9 +51,10 @@ srun python train.py \
   --logs_root $LOGS_ROOT \
   --samples_root $SAMPLE_ROOT \
   --model BigGAN \
+  --class_weights_file ecoset_class_weights.pt \
   --num_epochs 900 \
   --dataset ecoset_cs500 \
-  --shuffle  --num_workers 0 --batch_size 176 \
+  --shuffle  --num_workers 0 --batch_size 1760 \
   --num_G_accumulations 1 --num_D_accumulations 1 \
   --num_D_steps 2 --G_lr 5.0e-05 --D_lr 3.0e-04 --D_B2 0.999 --G_B2 0.999 \
   --G_attn 64 --D_attn 64 \
@@ -69,7 +70,6 @@ srun python train.py \
   --test_every 1000 --save_every 1000 \
   --num_best_copies 5 --num_save_copies 2 \
   --copy_in_mem \
-  --experiment_name weighting_run
   # --hier --seed 42 --resume \
   # --load_from ${LOAD_FROM} --load_weights best4
 

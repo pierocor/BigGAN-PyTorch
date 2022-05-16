@@ -37,6 +37,8 @@ def prepare_parser():
   usage = 'Parser for all scripts.'
   parser = ArgumentParser(description=usage)
   
+  parser.add_argument(
+    '--class_weights_file', type=str, default='ecoset_class_weights.pt')
   ### Dataset/Dataloader stuff ###
   parser.add_argument(
     '--dataset', type=str, default='I128_hdf5',
@@ -1111,9 +1113,11 @@ def get_SVs(net, prefix):
             float(d[key].item())
             for key in d if 'sv' in key}
 
+def name_from_config(config):
+  return '_'.join(['weighting', config['class_weights_file']])
 
 # Name an experiment based on its config
-def name_from_config(config):
+def name_from_config_old(config):
   name = '_'.join([
   item for item in [
   'Big%s' % config['which_train_fn'],
@@ -1202,7 +1206,9 @@ def sample_1hot(batch_size, num_classes, device='cuda'):
 class Distribution(torch.Tensor):
   # Init the params of the distribution
   def init_distribution(self, dist_type, **kwargs):    
-    class_weights = torch.load('/ptmp/wero/class_weights.pt').tolist()
+    cwd = os.getcwd()
+    filepath = os.path.join(cwd, 'ecoset_class_counts.pt')
+    class_weights = torch.load(filepath).tolist()
     self.dist_type = dist_type
     self.dist_kwargs = kwargs
     if self.dist_type == 'normal':
